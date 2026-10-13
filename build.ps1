@@ -35,6 +35,7 @@ if (!(Test-Path -LiteralPath $nativeClient) -or (Get-FileHash -LiteralPath $nati
     if ((Get-FileHash -LiteralPath $nativeClient -Algorithm SHA256).Hash -ne $expectedHash) { throw 'Client resource hash mismatch.' }
 }
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+Get-ChildItem -LiteralPath $OutputDirectory -Force | Remove-Item -Recurse -Force
 & $ZigPath cc -target x86_64-windows-gnu -shared -O2 -o (Join-Path $OutputDirectory 'XboxTriggerOutput.dll') (Join-Path $PSScriptRoot 'src/native-output.c')
 if ($LASTEXITCODE -ne 0) { throw 'Native compilation failed.' }
 $sources = Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | ForEach-Object FullName

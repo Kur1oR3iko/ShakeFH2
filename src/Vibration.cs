@@ -11,6 +11,54 @@ using System.Windows.Forms;
 
 namespace XboxTriggerBridge
 {
+    internal static class VibrationPreferences
+    {
+        static readonly string FilePath = Path.Combine(Path.GetDirectoryName(typeof(VibrationPreferences).Assembly.Location), "ShakeFH2.ini");
+        internal static int LoadTriggerPercent()
+        {
+            try
+            {
+                if (!File.Exists(FilePath)) return 100;
+                foreach (string line in File.ReadAllLines(FilePath, Encoding.UTF8))
+                {
+                    int separator = line.IndexOf('=');
+                    int value;
+                    if (separator > 0 && line.Substring(0, separator).Trim() == "TriggerPercent" && int.TryParse(line.Substring(separator + 1).Trim(), out value))
+                        return Math.Max(0, Math.Min(100, value));
+                }
+            }
+            catch (Exception exception) { Log.Write("Unable to load vibration preferences: " + exception.Message); }
+            return 100;
+        }
+        internal static void SaveTriggerPercent(int value)
+        {
+            value = Math.Max(0, Math.Min(100, value));
+            string temporary = FilePath + ".tmp";
+            File.WriteAllText(temporary, "TriggerPercent=" + value + Environment.NewLine, new UTF8Encoding(false));
+            if (File.Exists(FilePath)) File.Replace(temporary, FilePath, null); else File.Move(temporary, FilePath);
+        }
+        internal static void SelfTest()
+        {
+            string original = FilePath + ".selftest-backup";
+            bool existed = File.Exists(FilePath);
+            if (existed) File.Copy(FilePath, original, true);
+            try
+            {
+                SaveTriggerPercent(37);
+                if (LoadTriggerPercent() != 37) throw new Exception("Trigger strength did not persist to disk.");
+                SaveTriggerPercent(140);
+                if (LoadTriggerPercent() != 100) throw new Exception("Trigger strength was not clamped when loaded.");
+                SaveTriggerPercent(-4);
+                if (LoadTriggerPercent() != 0) throw new Exception("Trigger strength lower bound did not persist.");
+            }
+            finally
+            {
+                if (existed) { if (File.Exists(FilePath)) File.Delete(FilePath); File.Move(original, FilePath); }
+                else if (File.Exists(FilePath)) File.Delete(FilePath);
+            }
+        }
+    }
+
     internal static class Native
     {
         [DllImport("combase.dll")] internal static extern int RoInitialize(uint type);
@@ -368,7 +416,7 @@ namespace XboxTriggerBridge
         }
         Thread worker; volatile bool stop;
         internal const int ControllerIndex = 0;
-        internal volatile int TriggerPercent = 100;
+        internal volatile int TriggerPercent = VibrationPreferences.LoadTriggerPercent();
         internal volatile bool Enabled = true;
         internal string Status = "等待游戏和手柄";
         internal string Levels = "实时震动：LT 0.00  RT 0.00  握把 L 0.00  R 0.00";
@@ -522,6 +570,7 @@ namespace XboxTriggerBridge
         readonly Bridge bridge = new Bridge();
         readonly Label status = new Label(), levels = new Label(), peaks = new Label();
         readonly Label gameState = new Label();
+        System.Windows.Forms.Timer saveStrengthTimer;
         internal Window(bool hosted = false)
         {
             this.hosted = hosted;
@@ -533,8 +582,10 @@ namespace XboxTriggerBridge
             CheckBox enable = new CheckBox { Text = "启用扳机桥接", Checked = true, Location = new Point(20, 148), AutoSize = true };
             enable.CheckedChanged += delegate { bridge.Enabled = enable.Checked; };
             Label strengthLabel = new Label { Text = "扳机强度", Location = new Point(205, 150), AutoSize = true };
-            NumericUpDown strength = new NumericUpDown { Minimum = 0, Maximum = 100, Value = 100, Location = new Point(285, 145), Width = 70 };
-            strength.ValueChanged += delegate { bridge.TriggerPercent = (int)strength.Value; };
+            NumericUpDown strength = new NumericUpDown { Minimum = 0, Maximum = 100, Value = bridge.TriggerPercent, Location = new Point(285, 145), Width = 70 };
+            System.Windows.Forms.Timer saveTimer = new System.Windows.Forms.Timer { Interval = 250 }; saveStrengthTimer = saveTimer;
+            saveTimer.Tick += delegate { saveTimer.Stop(); SaveStrength((int)strength.Value); };
+            strength.ValueChanged += delegate { bridge.TriggerPercent = (int)strength.Value; saveTimer.Stop(); saveTimer.Start(); };
             gameState.SetBounds(20, 197, 140, 35);
             gameState.TextAlign = ContentAlignment.MiddleLeft;
             UpdateGameState(Process.GetProcessesByName("azimuth").Length > 0);
@@ -549,7 +600,8 @@ namespace XboxTriggerBridge
             System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer { Interval = 100 }; refreshTimer = timer;
             timer.Tick += delegate { status.Text = bridge.Status; levels.Text = bridge.Levels; peaks.Text = bridge.Peaks; bool gameRunning = Process.GetProcessesByName("azimuth").Length > 0; UpdateGameState(gameRunning); test.Enabled = !gameRunning; };
             Shown += delegate { if (!this.hosted) StartServices(); };
-            FormClosed += delegate { StopServices(); timer.Dispose(); };
+            FormClosing += delegate { saveTimer.Stop(); SaveStrength((int)strength.Value); };
+            FormClosed += delegate { StopServices(); timer.Dispose(); saveTimer.Dispose(); };
         }
         internal void StartServices() { if (ServicesRunning) return; bridge.Start(); refreshTimer.Start(); ServicesRunning = true; }
         internal void StopServices()
@@ -558,6 +610,11 @@ namespace XboxTriggerBridge
             refreshTimer.Stop(); bridge.Dispose(); ServicesRunning = false;
             status.Text = "震动模式未运行；原有震动处理已恢复";
             levels.Text = "实时震动：LT 0.00  RT 0.00  握把 L 0.00  R 0.00"; peaks.Text = "";
+        }
+        void SaveStrength(int value)
+        {
+            try { VibrationPreferences.SaveTriggerPercent(value); }
+            catch (Exception exception) { Log.Write("Unable to save vibration preferences: " + exception); }
         }
         void UpdateGameState(bool running)
         {
@@ -574,7 +631,7 @@ namespace XboxTriggerBridge
             try
             {
                 if (args.Length > 0 && args[0] == "--fixture") return Tests.Fixture(args[1]);
-                if (args.Length > 0 && args[0] == "--self-test") { Tests.SelfTest(); return 0; }
+                if (args.Length > 0 && args[0] == "--self-test") { VibrationPreferences.SelfTest(); Tests.SelfTest(); return 0; }
                 if (args.Length > 0 && (args[0] == "--probe" || args[0] == "--test-motors")) { Tests.Probe(args[0] == "--test-motors"); return 0; }
                 bool created;
                 using (Mutex mutex = new Mutex(true, "Local\\FH2XboxTriggerBridge-v1", out created))

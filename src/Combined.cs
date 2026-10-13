@@ -117,7 +117,7 @@ namespace FH2Tools
                 {
                     if(args[0]=="--fixture") return XboxTriggerBridge.Tests.Fixture(args[1]);
                     if(args[0]=="--keyboard-worker") return KeyboardIsolation.RunWorker(args[1],int.Parse(args[2]));
-                    if(args[0]=="--self-test") { XboxTriggerBridge.Tests.SelfTest(); KeyFH2.Tests.Run(); KeyFH2.Tests.MappingOnly(); return 0; }
+                    if(args[0]=="--self-test") { XboxTriggerBridge.VibrationPreferences.SelfTest(); XboxTriggerBridge.Tests.SelfTest(); KeyFH2.Tests.Run(); KeyFH2.Tests.MappingOnly(); return 0; }
                     if(args[0]=="--keyboard-self-test") { KeyFH2.Tests.Run(); KeyFH2.Tests.MappingOnly(); return 0; }
                     if(args[0]=="--test-modes") { ModeTests.Run(); return 0; }
                     if(args[0]=="--test-mixing") { ModeTests.Mixing(); return 0; }
