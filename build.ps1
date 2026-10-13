@@ -21,5 +21,5 @@ if ($LASTEXITCODE -ne 0) { throw 'Native output compilation failed.' }
 & $compiler /nologo /target:winexe /platform:x64 /optimize+ /r:System.Windows.Forms.dll /r:System.Drawing.dll "/out:$OutputDirectory\ShakeFH2.exe" (Join-Path $PSScriptRoot 'XboxTriggerBridge.cs')
 if ($LASTEXITCODE -ne 0) { throw 'C# compilation failed.' }
 
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md'),(Join-Path $PSScriptRoot 'THIRD-PARTY-NOTICES.txt'),(Join-Path $PSScriptRoot 'VALIDATION.md') -Destination $OutputDirectory -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'DISTRIBUTION_README.md') -Destination (Join-Path $OutputDirectory 'README.md') -Force
 Write-Output "Build completed: $OutputDirectory"
