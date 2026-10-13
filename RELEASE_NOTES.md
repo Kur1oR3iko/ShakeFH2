@@ -4,6 +4,8 @@
 
 作者：**栗尾玲子KurioReiko**
 
+**支持 USB 有线和蓝牙连接。** 蓝牙模式需要具备蓝牙功能及扳机震动马达的 Xbox 手柄；当前保存的实测记录为 USB，蓝牙实测结果尚未记录。
+
 **已验证：Azimuth 0.9.7 + Xbox One 版 FH2 Anthem 1.0.0.64 + Windows 11 x64 + USB Xbox 手柄。新版本的运行器、游戏以及其他组合不保证支持。**
 
 下载 `ShakeFH2-v1.0.0-win-x64.zip`，解压后运行 `ShakeFH2.exe`，保持旁边的 `XboxTriggerOutput.dll`。按原有方式启动游戏，工具自动连接。
