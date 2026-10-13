@@ -1,0 +1,11 @@
+/dist/
+/dev/
+/.zig-cache/
+/zig-out/
+*.log
+*.exe
+*.dll
+*.pdb
+*.lib
+*.obj
+fixture-*.txt
