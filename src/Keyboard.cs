@@ -32,6 +32,7 @@ namespace KeyFH2
         [DllImport("ViGEmClient.dll", CallingConvention=CallingConvention.Cdecl)] public static extern uint vigem_target_x360_update(IntPtr client, IntPtr target, Report report);
         [DllImport("ViGEmClient.dll", CallingConvention=CallingConvention.Cdecl)] public static extern uint vigem_target_x360_get_user_index(IntPtr client, IntPtr target, out uint index);
         [DllImport("xinput1_4.dll")] public static extern uint XInputGetState(uint index, out XState state);
+        [DllImport("xinput1_4.dll", EntryPoint="#108")] public static extern uint XInputGetCapabilitiesEx(uint reserved,uint index,uint flags,IntPtr capabilities);
         [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
         [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
@@ -62,7 +63,24 @@ namespace KeyFH2
             }
             catch { Dispose(); throw; }
         }
-        public void Send(Report report) { Native.Check(Native.vigem_target_x360_update(client,target,report)); }
+        public void Send(Report report)
+        {
+            Native.Check(Native.vigem_target_x360_update(client,target,report));
+            uint current;
+            Native.Check(Native.vigem_target_x360_get_user_index(client,target,out current));
+            Index=current;
+            IntPtr capabilities=Marshal.AllocHGlobal(64);
+            try
+            {
+                for(uint slot=0;slot<4;slot++)
+                    if(Native.XInputGetCapabilitiesEx(1,slot,0,capabilities)==0 &&
+                        (ushort)Marshal.ReadInt16(capabilities,20)==0x045e &&
+                        (ushort)Marshal.ReadInt16(capabilities,22)==0x028e)
+                    { Index=slot; break; }
+            }
+            catch(EntryPointNotFoundException) { }
+            finally { Marshal.FreeHGlobal(capabilities); }
+        }
         public void Dispose()
         {
             if (added) { try { Send(new Report()); } catch {} Native.vigem_target_remove(client,target); added=false; }
@@ -270,6 +288,7 @@ namespace KeyFH2
                         }
                         else engine.Reset();
                         pad.Send(output);
+                        PadNumber=(int)pad.Index+1;
                         lock(reportGate) lastOutput=output;
                         Status=Capturing?"修改绑定中；虚拟输入已释放":!Enabled?"已暂停；虚拟输入已释放（F8 恢复）":active?"映射生效：键盘 → 虚拟 Xbox 手柄":"已就绪；等待游戏处于前台";
                         Live=string.Format("油门 {0:0}%  刹车 {1:0}%  转向 {2:0}%  按钮 0x{3:X4}",input.RT*100.0/255,input.LT*100.0/255,input.LX*100.0/32767,input.Buttons);

@@ -164,7 +164,10 @@ __declspec(dllexport) DWORD WINAPI TestInputMix(const XINPUT_GAMEPAD *physical,c
 static DWORD WINAPI merged_get(DWORD user,XINPUT_STATE *state) {
     InputShared *s=input_shared;
     if(!input_active(s)) return real_get(user,state);
-    if(user!=0) return ERROR_DEVICE_NOT_CONNECTED;
+    /* The game may retain a player slot selected before the virtual pad was
+       created. Route every valid slot to the same logical combined controller
+       so reconnecting devices cannot strand that cached player index. */
+    if(user>=4) return ERROR_DEVICE_NOT_CONNECTED;
     if(!state) return ERROR_BAD_ARGUMENTS;
     XINPUT_STATE physical={0}; LONG selected=-1;
     for(DWORD i=0;i<4;i++) if(i!=s->virtual_index&&real_get(i,&physical)==ERROR_SUCCESS) { selected=(LONG)i; break; }

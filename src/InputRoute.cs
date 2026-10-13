@@ -14,6 +14,7 @@ namespace FH2Tools
         long memory;
         int sequence;
         long lastScan;
+        long lastDiagnostic;
         readonly Stopwatch clock=Stopwatch.StartNew();
         internal string Update(KeyboardReply reply)
         {
@@ -42,6 +43,12 @@ namespace FH2Tools
                 }
                 Write(memory+24,report); Write(memory+12,BitConverter.GetBytes(sequence*2+2));
                 int status=BitConverter.ToInt32(Read(memory+36,4),0);
+                if(clock.ElapsedMilliseconds-lastDiagnostic>3000)
+                {
+                    lastDiagnostic=clock.ElapsedMilliseconds;
+                    byte[] diagnostic=Read(memory+36,12);
+                    XboxTriggerBridge.Log.Write("Input route state: status="+BitConverter.ToInt32(diagnostic,0)+", physical="+BitConverter.ToInt32(diagnostic,4)+", calls="+BitConverter.ToInt32(diagnostic,8)+", virtual="+(reply.PadNumber-1));
+                }
                 return status==1?"已合并实体手柄与键盘输入":"等待游戏输入接口就绪";
             }
             catch(Exception exception)
