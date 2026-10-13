@@ -62,7 +62,9 @@ namespace XboxTriggerBridge
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] delegate int GetAt(IntPtr self, uint index, out IntPtr gamepad);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] delegate int PutVibration(IntPtr self, Vibration vibration);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] delegate int GetVibration(IntPtr self, out Vibration vibration);
-        IntPtr factory;
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] delegate int FromController(IntPtr self, IntPtr controller, out IntPtr raw);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] delegate int GetWord(IntPtr self, out ushort value);
+        IntPtr factory, rawFactory;
         bool initialized;
         internal Wgi()
         {
@@ -74,18 +76,42 @@ namespace XboxTriggerBridge
             Native.HResult(Native.WindowsCreateString(className, (uint)className.Length, out name));
             try { Guid iid = new Guid("8bbce529-d49c-39e9-9560-e47dde96b7c8"); Native.HResult(Native.RoGetActivationFactory(name, ref iid, out factory)); }
             finally { Native.WindowsDeleteString(name); }
+            className = "Windows.Gaming.Input.RawGameController";
+            Native.HResult(Native.WindowsCreateString(className, (uint)className.Length, out name));
+            try { Guid iid = new Guid("eb8d0792-e95a-4b19-afc7-0a59f8bf759e"); Native.HResult(Native.RoGetActivationFactory(name, ref iid, out rawFactory)); }
+            finally { Native.WindowsDeleteString(name); }
         }
         IntPtr Vector() { IntPtr vector; Native.HResult(Native.Method<GetVector>(factory, 10)(factory, out vector)); return vector; }
         internal int Count
         {
-            get { IntPtr vector = Vector(); try { uint count; Native.HResult(Native.Method<GetSize>(vector, 7)(vector, out count)); return checked((int)count); } finally { Marshal.Release(vector); } }
+            get
+            {
+                IntPtr vector = Vector();
+                try { uint count; Native.HResult(Native.Method<GetSize>(vector,7)(vector,out count)); int physical=0; for(uint i=0;i<count;i++) { IntPtr item; Native.HResult(Native.Method<GetAt>(vector,6)(vector,i,out item)); try { if(!IsVirtual(item)) physical++; } finally { Marshal.Release(item); } } return physical; }
+                finally { Marshal.Release(vector); }
+            }
+        }
+        bool IsVirtual(IntPtr item)
+        {
+            IntPtr controller=IntPtr.Zero,raw=IntPtr.Zero;
+            try
+            {
+                Guid iid=new Guid("1baf6522-5f64-42c5-8267-b9fe2215bfbd"); Native.HResult(Marshal.QueryInterface(item,ref iid,out controller));
+                Native.HResult(Native.Method<FromController>(rawFactory,11)(rawFactory,controller,out raw));
+                if(raw==IntPtr.Zero) return false;
+                ushort product,vendor; Native.HResult(Native.Method<GetWord>(raw,9)(raw,out product)); Native.HResult(Native.Method<GetWord>(raw,10)(raw,out vendor));
+                return vendor==0x045e&&product==0x028e;
+            }
+            finally { if(raw!=IntPtr.Zero) Marshal.Release(raw); if(controller!=IntPtr.Zero) Marshal.Release(controller); }
         }
         internal IntPtr Open(int index)
         {
             IntPtr vector = Vector(), obj = IntPtr.Zero;
             try
             {
-                Native.HResult(Native.Method<GetAt>(vector, 6)(vector, (uint)index, out obj));
+                uint count; Native.HResult(Native.Method<GetSize>(vector,7)(vector,out count)); int physical=0;
+                for(uint i=0;i<count;i++) { Native.HResult(Native.Method<GetAt>(vector,6)(vector,i,out obj)); if(!IsVirtual(obj)&&physical++==index) break; Marshal.Release(obj); obj=IntPtr.Zero; }
+                if(obj==IntPtr.Zero) throw new InvalidOperationException("所选实体手柄不可用。");
                 Guid iid = new Guid("bc7bb43c-0a69-3903-9e9d-a50f86a45de5"); IntPtr gamepad;
                 Native.HResult(Marshal.QueryInterface(obj, ref iid, out gamepad)); return gamepad;
             }
@@ -93,7 +119,7 @@ namespace XboxTriggerBridge
         }
         internal void Put(IntPtr gamepad, Vibration value) { Native.HResult(Native.Method<PutVibration>(gamepad, 7)(gamepad, value)); }
         internal Vibration Get(IntPtr gamepad) { Vibration value; Native.HResult(Native.Method<GetVibration>(gamepad, 6)(gamepad, out value)); return value; }
-        public void Dispose() { if (factory != IntPtr.Zero) { Marshal.Release(factory); factory = IntPtr.Zero; } if (initialized) { Native.RoUninitialize(); initialized = false; } }
+        public void Dispose() { if(rawFactory!=IntPtr.Zero) { Marshal.Release(rawFactory); rawFactory=IntPtr.Zero; } if (factory != IntPtr.Zero) { Marshal.Release(factory); factory = IntPtr.Zero; } if (initialized) { Native.RoUninitialize(); initialized = false; } }
     }
 
     internal sealed class ThreadPause : IDisposable
@@ -140,6 +166,7 @@ namespace XboxTriggerBridge
         const int Stolen = 15, StubOffset = 4096;
         internal readonly Process Process;
         IntPtr handle;
+        bool nativeStarted;
         internal long Buffer, Target;
         internal bool Reused;
         internal RemoteHook(Process process, long fixtureTarget)
@@ -249,6 +276,12 @@ namespace XboxTriggerBridge
         internal void Lease(bool active) { Write(Buffer + 20, BitConverter.GetBytes(active ? 120 : 0)); }
         internal void Configure(bool active, int strength, int selection)
         {
+            if(!active)
+            {
+                Write(Buffer+68,new byte[4]); Write(Buffer+40,new byte[4]); Lease(false);
+                if(nativeStarted) for(int i=0;i<50;i++) { if(BitConverter.ToInt32(Read(Buffer+68,4),0)==1||NativeState<0) break; Thread.Sleep(10); }
+                return;
+            }
             Write(Buffer + 36, BitConverter.GetBytes(strength));
             Write(Buffer + 40, BitConverter.GetBytes(active ? System.Diagnostics.Process.GetCurrentProcess().Id : 0));
             Write(Buffer + 48, BitConverter.GetBytes(Native.GetTickCount64()));
@@ -290,6 +323,7 @@ namespace XboxTriggerBridge
             }
             finally { Native.FreeLibrary(local); }
             Log.Write("In-game Windows.Gaming.Input output started, DLL base=0x" + remote.BaseAddress.ToInt64().ToString("X"));
+            nativeStarted=true;
         }
         void RunRemote(long entry, long parameter)
         {
@@ -333,7 +367,7 @@ namespace XboxTriggerBridge
             internal DisplaySample(long time, Vibration value) { Time = time; Value = value; }
         }
         Thread worker; volatile bool stop;
-        internal volatile int ControllerIndex;
+        internal const int ControllerIndex = 0;
         internal volatile int TriggerPercent = 100;
         internal volatile bool Enabled = true;
         internal string Status = "等待游戏和手柄";
@@ -342,7 +376,7 @@ namespace XboxTriggerBridge
         internal volatile bool Connected;
         internal volatile bool Busy;
         internal volatile bool TestRequested;
-        internal void Start() { worker = new Thread(Run); worker.IsBackground = true; worker.SetApartmentState(ApartmentState.MTA); worker.Start(); }
+        internal void Start() { stop = false; worker = new Thread(Run); worker.IsBackground = true; worker.SetApartmentState(ApartmentState.MTA); worker.Start(); }
         static double Clamp(float value) { return float.IsNaN(value) || float.IsInfinity(value) ? 0 : Math.Max(0, Math.Min(1, value)); }
         void Run()
         {
@@ -366,7 +400,7 @@ namespace XboxTriggerBridge
                                     if (gamepad != IntPtr.Zero) { try { wgi.Put(gamepad, new Vibration()); } catch {} Marshal.Release(gamepad); gamepad = IntPtr.Zero; }
                                     if (hook != null) hook.Lease(false);
                                     int count = wgi.Count;
-                                    if (count == 0) { Status = "未检测到手柄；请连接 USB Xbox 手柄"; Thread.Sleep(500); continue; }
+                                    if (count == 0) { Status = "未检测到手柄；请通过 USB 或蓝牙连接 Xbox 手柄"; Thread.Sleep(500); continue; }
                                     if (ControllerIndex >= count) { Status = "所选手柄不可用"; Thread.Sleep(500); continue; }
                                     gamepad = wgi.Open(ControllerIndex); selected = ControllerIndex;
                                     wgi.Put(gamepad, new Vibration());
@@ -407,7 +441,9 @@ namespace XboxTriggerBridge
                                 {
                                     if (current != sequence) { sequence = current; lastSample = clock.ElapsedMilliseconds; }
                                     bool fresh = current != 0 && clock.ElapsedMilliseconds - lastSample < 750;
-                                    if (Enabled)
+                                    uint foregroundPid; KeyFH2.Native.GetWindowThreadProcessId(KeyFH2.Native.GetForegroundWindow(),out foregroundPid);
+                                    bool gameForeground=foregroundPid==(uint)hook.Process.Id;
+                                    if (Enabled && gameForeground)
                                     {
                                         // The native output thread runs inside the foreground game.
                                         double strength = TriggerPercent / 100.0;
@@ -438,10 +474,10 @@ namespace XboxTriggerBridge
                                     else
                                     {
                                         // Release ownership once, so zeros do not overwrite normal rumble.
-                                        if (Connected) hook.Configure(false, TriggerPercent, ControllerIndex);
-                                        Levels = "扳机桥接已暂停；使用游戏原有握把震动"; Peaks = ""; displayHistory.Clear(); Status = "已暂停";
+                                        if (Connected) { hook.Configure(false, TriggerPercent, ControllerIndex); wgi.Put(gamepad,new Vibration()); }
+                                        Levels = "震动输出已清零"; Peaks = ""; displayHistory.Clear(); Status = Enabled ? "游戏不在前台；震动暂时暂停" : "已暂停";
                                     }
-                                    Connected = Enabled;
+                                    Connected = Enabled && gameForeground;
                                     if (clock.ElapsedMilliseconds - lastReport > 5000)
                                     {
                                         lastReport = clock.ElapsedMilliseconds;
@@ -461,15 +497,15 @@ namespace XboxTriggerBridge
                     }
                     finally
                     {
-                        if (gamepad != IntPtr.Zero) { try { wgi.Put(gamepad, new Vibration()); } catch {} Marshal.Release(gamepad); }
                         if (hook != null) hook.Dispose();
+                        if (gamepad != IntPtr.Zero) { try { wgi.Put(gamepad, new Vibration()); } catch {} Marshal.Release(gamepad); }
                     }
                 }
             }
             catch (Exception exception) { Status = exception.Message; Log.Write(exception.ToString()); }
             finally { Native.timeEndPeriod(1); }
         }
-        public void Dispose() { stop = true; if (worker != null) worker.Join(6000); }
+        public void Dispose() { stop = true; if (worker != null && worker.IsAlive && !worker.Join(6000)) throw new InvalidOperationException("震动线程尚未停止，请稍后重试。"); }
     }
 
     internal static class Log
@@ -480,39 +516,48 @@ namespace XboxTriggerBridge
 
     internal sealed class Window : Form
     {
+        readonly bool hosted;
+        System.Windows.Forms.Timer refreshTimer;
+        internal bool ServicesRunning { get; private set; }
         readonly Bridge bridge = new Bridge();
         readonly Label status = new Label(), levels = new Label(), peaks = new Label();
         readonly Label gameState = new Label();
-        internal Window()
+        internal Window(bool hosted = false)
         {
+            this.hosted = hosted;
             Text = "FH2 Xbox 扳机震动"; ClientSize = new Size(620, 370); FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false; Font = new Font("Microsoft YaHei UI", 10); StartPosition = FormStartPosition.CenterScreen;
-            Label title = new Label { Text = "Forza Horizon 2 · Xbox 原生扳机震动", Location = new Point(20, 18), AutoSize = true, Font = new Font(Font, FontStyle.Bold) };
+            Label title = new Label { Text = "手柄震动", Location = new Point(20, 18), AutoSize = true, Font = new Font(Font, FontStyle.Bold) };
             status.SetBounds(20, 55, 580, 45); levels.SetBounds(20, 105, 580, 30);
             peaks.SetBounds(20, 137, 580, 30);
-            Label signalHint = new Label { Text = "数值表示马达震动强度；按下扳机的深度是另一种数据。", Location = new Point(20, 174), AutoSize = true, ForeColor = Color.DimGray };
             CheckBox enable = new CheckBox { Text = "启用扳机桥接", Checked = true, Location = new Point(20, 148), AutoSize = true };
             enable.CheckedChanged += delegate { bridge.Enabled = enable.Checked; };
             Label strengthLabel = new Label { Text = "扳机强度", Location = new Point(205, 150), AutoSize = true };
             NumericUpDown strength = new NumericUpDown { Minimum = 0, Maximum = 100, Value = 100, Location = new Point(285, 145), Width = 70 };
             strength.ValueChanged += delegate { bridge.TriggerPercent = (int)strength.Value; };
-            Label indexLabel = new Label { Text = "手柄编号", Location = new Point(390, 150), AutoSize = true };
-            NumericUpDown index = new NumericUpDown { Minimum = 1, Maximum = 4, Value = 1, Location = new Point(475, 145), Width = 60 };
-            index.ValueChanged += delegate { bridge.ControllerIndex = (int)index.Value - 1; };
             gameState.SetBounds(20, 197, 140, 35);
             gameState.TextAlign = ContentAlignment.MiddleLeft;
             UpdateGameState(Process.GetProcessesByName("azimuth").Length > 0);
             Button test = new Button { Text = "测试扳机", Location = new Point(170, 197), Size = new Size(130, 35) };
             test.Click += delegate { bridge.TestRequested = true; };
-            Button exit = new Button { Text = "停止并退出", Location = new Point(320, 197), Size = new Size(130, 35) }; exit.Click += delegate { Close(); };
+            Button exit = new Button { Text = "停止并退出", Location = new Point(320, 197), Size = new Size(130, 35) };
+            exit.Click += delegate { if (this.hosted && Parent != null) Parent.FindForm().Close(); else Close(); };
             Label hint = new Label { Text = "保持本窗口运行。关闭后恢复原有震动；不修改游戏文件。", Location = new Point(20, 246), AutoSize = true, ForeColor = Color.DimGray };
             Label author = new Label { Text = "作者：栗尾玲子KurioReiko", Location = new Point(20, 336), Size = new Size(580, 25), TextAlign = ContentAlignment.MiddleRight, Font = new Font(Font, FontStyle.Bold) };
-            foreach (Control control in new Control[] {enable, strengthLabel, strength, indexLabel, index, gameState, test, exit, hint}) control.Top += 60;
-            Controls.AddRange(new Control[] {title, status, levels, peaks, signalHint, enable, strengthLabel, strength, indexLabel, index, gameState, test, exit, hint, author});
-            System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer { Interval = 100 };
+            foreach (Control control in new Control[] {enable, strengthLabel, strength, gameState, test, exit, hint}) control.Top += 60;
+            Controls.AddRange(new Control[] {title, status, levels, peaks, enable, strengthLabel, strength, gameState, test, exit, hint, author});
+            System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer { Interval = 100 }; refreshTimer = timer;
             timer.Tick += delegate { status.Text = bridge.Status; levels.Text = bridge.Levels; peaks.Text = bridge.Peaks; bool gameRunning = Process.GetProcessesByName("azimuth").Length > 0; UpdateGameState(gameRunning); test.Enabled = !gameRunning; };
-            Shown += delegate { bridge.Start(); timer.Start(); };
-            FormClosed += delegate { timer.Stop(); timer.Dispose(); bridge.Dispose(); };
+            Shown += delegate { if (!this.hosted) StartServices(); };
+            FormClosed += delegate { StopServices(); timer.Dispose(); };
+        }
+        internal void StartServices() { if (ServicesRunning) return; bridge.Start(); refreshTimer.Start(); ServicesRunning = true; }
+        internal void StopServices()
+        {
+            if (!ServicesRunning) return;
+            refreshTimer.Stop(); bridge.Dispose(); ServicesRunning = false;
+            status.Text = "震动模式未运行；原有震动处理已恢复";
+            levels.Text = "实时震动：LT 0.00  RT 0.00  握把 L 0.00  R 0.00"; peaks.Text = "";
         }
         void UpdateGameState(bool running)
         {

@@ -9,3 +9,4 @@
 *.lib
 *.obj
 fixture-*.txt
+/assets/*-preview.png

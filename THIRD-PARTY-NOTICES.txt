@@ -1,9 +1,14 @@
-Azimuth SetVibration signature and four-channel float layout reference:
-https://github.com/aminenrr/FH2-DualSense
-
+FH2-DualSense: https://github.com/aminenrr/FH2-DualSense
+Azimuth vibration signature and four-channel float layout reference.
 MIT License
-
 Copyright (c) 2026 aminenrr
+
+ViGEmClient: https://github.com/nefarius/ViGEmClient
+Native x64 library from official Nefarius.ViGEm.Client 1.21.256.
+MIT License
+Copyright (c) 2018 Benjamin Höglinger-Stelzer
+
+The following terms apply separately to each component above:
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

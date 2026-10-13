@@ -1,95 +1,126 @@
 # ShakeFH2
 
-为通过 **Azimuth** 运行的 Xbox One 版《极限竞速：地平线 2》（Forza Horizon 2）及《地平线 2：速度与激情》（Forza Horizon 2 Presents Fast & Furious，常称“速度与激情 DLC”）恢复 Xbox 手柄的扳机震动。
+**扳机震动 + 键盘映射，一个软件，两个界面。**
+
+为 Azimuth 上的 Xbox One 版《地平线 2》及《地平线 2：速度与激情》（常称“速度与激情 DLC”）提供原生扳机震动和键盘操作，支持**实体手柄与键盘同时输入**。
 
 作者：**栗尾玲子KurioReiko**
 
-工具读取游戏原本提交的左右握把、左右扳机四路震动强度，并在游戏进程内通过 Windows.Gaming.Input 转发到手柄。扳机反馈使用游戏原生数据，保留握把震动。
+## 下载
 
-**支持 USB 有线和蓝牙连接。** 蓝牙连接需要使用具备蓝牙功能及扳机震动马达的 Xbox 手柄。
+从 [Releases](https://github.com/Kur1oR3iko/ShakeFH2/releases/latest) 下载 **v2.0.0 Windows x64**，解压后运行 ShakeFH2.exe。
 
-## 适用版本
+分发包只有三个文件：ShakeFH2.exe、XboxTriggerOutput.dll 和简要 README.md。EXE 与 DLL 必须放在同一目录。
+
+## 两个界面
+
+### 手柄震动
+
+![手柄震动界面](assets/vibration.png)
+
+- 转发游戏原本生成的左右握把、左右扳机四路震动。
+- 支持 Xbox 手柄通过 **USB 或蓝牙**连接。
+- 可调节扳机强度，默认 100%，握把保留游戏原始强度。
+- 显示实时值和近 3 秒峰值，方便观察短脉冲。
+- 自动排除键盘映射的虚拟设备，震动发给实体手柄。
+- 停止接管时清零；游戏切到后台时暂停震动。
+
+数值表示**马达震动强度，不是扳机按下的深度**。
+
+### 键盘映射
+
+![键盘映射界面](assets/keyboard.png)
+
+- 默认驾驶键位参考 FH4，功能标注依据 FH2 控制配置 1。
+- 提供默认、方向键驾驶和空白预设。
+- 每项可设置主键、备用键，配置自动保存。
+- 可调转向渐进、回正、扳机渐进和最大转向幅度。
+- F8 暂停 / 恢复键盘映射，实体手柄仍可操作。
+- 默认只在游戏前台发送键盘输入，切出游戏立即释放。
+- 默认不显示与当前游戏功能无关的字段。
+
+**切换标签页只切换界面，不会停用另一个功能。** 不需要为了使用键盘而断开实体手柄。
+
+## 手柄与键盘同时操作
+
+软件在游戏实际读取的输入通道中合并两种输入：
+
+| 输入 | 合并规则 |
+| --- | --- |
+| 按钮 | 两种来源的按钮合并 |
+| 油门 / 刹车 | 取两种来源中较大的值 |
+| 摇杆 | 键盘轴非零时优先使用键盘，回正后使用手柄值 |
+
+当前合并第一台可用实体手柄与键盘；震动直接发送给实体手柄。
+
+## 适用版本与要求
 
 | 项目 | 适用环境 |
 | --- | --- |
 | 运行器 | **Azimuth 0.9.7，Windows x64** |
 | 游戏 | **Xbox One 版《地平线 2》（Anthem 1.0.0.64）及《地平线 2：速度与激情》** |
-| 系统 | Windows 11 x64，系统自带 .NET Framework 4.x |
+| 系统 | Windows x64、.NET Framework 4.x；实测 Windows 11 |
 | 手柄 | Xbox 手柄 |
+| 键盘驱动 | ViGEmBus；实测 1.21.442.0 |
 
-**当前实测记录为 Azimuth 0.9.7 +《地平线 2》Anthem 1.0.0.64 + USB Xbox 手柄。新版本的 Azimuth、新版本的游戏，以及其他构建不保证支持。** 本工具依赖特定的游戏运行器函数特征；更新后可能无法定位，或者原有行为已经变化。请不要把“能启动工具”当成版本兼容的证明。
+**新版本运行器、游戏及其他构建不保证支持。** 震动捕获和输入合并依赖运行器接口，更新后可能改变这些接口。
 
-Xbox One / Series 手柄需要有左右扳机震动马达。目前保存的实测记录为 USB 连接；蓝牙连接受手柄固件和 Windows 驱动影响，尚未记录蓝牙实测结果。Xbox 无线接收器、多手柄和虚拟手柄组合尚未实测。不适用于 Xbox 360 版《地平线 2》，也不是《地平线 3 / 4 / 5》的插件。
+键盘功能需要已经安装 [ViGEmBus](https://github.com/nefarius/ViGEmBus/releases)。软件不会自动安装驱动。客户端已内置，最终用户不需要安装 Python、Zig 或额外分发客户端 DLL。
 
-## 下载和使用
+扳机震动需要手柄有对应马达。不适用于 Xbox 360 版《地平线 2》，也不是其他 Forza 游戏的通用插件。
 
-1. 从 [Releases](https://github.com/Kur1oR3iko/ShakeFH2/releases) 下载 Windows x64 压缩包，解压到独立文件夹。
-2. 保持 `ShakeFH2.exe` 和 `XboxTriggerOutput.dll` 在同一个文件夹。
-3. 通过 USB 或蓝牙连接 Xbox 手柄，运行 `ShakeFH2.exe`。
-4. 使用你原来的方式启动游戏。窗口会显示灰色“游戏：未启动”或绿色“游戏：已启动”；工具自动连接正在运行的 Azimuth。
-5. 保持工具运行，进入驾驶场景测试刹车和加速打滑等反馈。
+## 使用
 
-无须把 DLL 手动放进游戏目录，也无须安装 Python、Zig 或额外的运行库。工具不包含游戏文件、运行器、DLC、存档或其他游戏插件。
+1. 退出旧版 ShakeFH2 / KeyFH2。升级前先退出游戏，解压新版到独立文件夹。
+2. 保留旧键位时，将旧目录的 KeyFH2.ini 复制到新版目录。
+3. 启动 ShakeFH2.exe，连接手柄，按原有方式启动游戏。
+4. 在两页分别设置功能；两个功能可独立启用。
+5. 关闭软件会释放键盘输入、移除虚拟手柄并停止震动接管。
 
-分发包仅包含 `ShakeFH2.exe`、`XboxTriggerOutput.dll` 和简要 `README.md`。完整说明、源码、验证记录及第三方许可文件保留在仓库中。
+通常不需要管理员权限；游戏以管理员身份运行时，软件需要同等权限。
 
-通常不需要管理员权限。如果游戏以管理员身份运行，工具需要以同等权限运行才能连接。
+软件只有一个操作窗口。任务管理器可能显示一个额外的同名隐藏进程，用于隔离键盘输入后端。内置客户端首次使用时解包到当前用户的本地应用数据目录。
 
-## 窗口功能
+## 默认键位
 
-- **启用扳机桥接**：开启四路输出；取消后恢复原来的游戏震动处理。
-- **扳机强度**：仅缩放左右扳机，默认 100%；握把强度保持游戏原值。
-- **手柄编号**：选择 Windows.Gaming.Input 枚举中的手柄，默认第 1 个。
-- **实时震动**：显示最新采样的四路震动强度。
-- **近 3 秒震动峰值**：保留短脉冲的最大值，方便观察。仅影响显示。
-- **测试扳机**：游戏未运行时依次短暂测试左扳机、右扳机和握把。
-- **停止并退出**：停止工具并释放震动输出接管。
+| 键盘 | 功能 |
+| --- | --- |
+| W / S | 油门 / 刹车、倒车 |
+| A / D | 转向 |
+| Space / Enter | 手刹 / 菜单确认 |
+| E / Backspace | 手动挡升挡 / 菜单返回 |
+| Q | 执行动作；手动挡降挡 |
+| Shift | 手动离合 |
+| R / C / M / Esc | 回放 / 视角 / 地图 / 暂停 |
+| 方向键 | 菜单导航；驾驶中对应相片、遥测、广播、排行榜 |
+| 小键盘 4 / 6 / 8 / 2 | 右摇杆观察 |
 
-窗口数值表示**马达震动强度，不是扳机按下的深度**。只按下扳机，而游戏没有产生反馈时，数值仍可能为零。
+双击表格键位可修改或清除。当前每个绑定为单个键，不支持组合键；F8 保留给暂停 / 恢复。
 
-## 工作方式与限制
+## 实现与验证
 
-工具通过特征码定位 Azimuth 的 `SetVibration`，在运行中的进程内捕获游戏提交的四个 `float`。`XboxTriggerOutput.dll` 在游戏进程内使用 `Gamepad.Vibration` 驱动四路马达，以避免本机独立后台程序“接口成功但实际不震动”的问题。
+通过运行中的内存接口捕获震动、合并输入，不改写游戏文件或存档。输出模块在游戏进程内执行，键盘后端隔离运行，避免接口相互影响。
 
-函数特征不匹配、匹配结果不唯一或被其他工具改写时，工具拒绝安装新的入口补丁。不要同时使用其他修改同一震动函数的工具。桥接就绪后暂时接管原有 XInput 输出，避免两套输出互相覆盖。
+已在实际游戏中确认：**两种输入均可操作，切换页面后震动正常**。自动测试涵盖内存桥接、真实 XInput 回读、配置迁移、双后端生命周期和原生合并规则，见 [VALIDATION.md](VALIDATION.md)。
 
-输出线程约每 8 毫秒发送最新值，可能增加延迟或漏过更短的变化；超过 750 毫秒没有新信号时清零。强度为 100% 时，合法范围内的原生强度数值不变。**未与 Xbox 主机做同步测量，不保证最终触感和时序完全一致。**
+没有与 Xbox 主机做同步波形和延迟比较，不保证触感和时序完全相同。键盘转向是可调摇杆渐进，没有复制 FH4 的速度相关算法。
 
-工具使用共享心跳和调用租约，在异常停止后尝试停止输出并恢复原处理函数。进程内模块和被动跳板保留到游戏退出，避免其他线程正在执行时被移除。若线程或驱动故障导致残留震动，可退出游戏或重连手柄。
+## 编译
 
-工具不改写游戏可执行文件、画面插件或存档。运行日志保存在工具目录的 `bridge.log`；报告问题时可提供运行器版本、游戏版本、手柄型号、连接方式和相关日志。
+需要 Windows x64、.NET Framework 4.x C# 编译器和 **Zig 0.16.0**。
 
-## 从源码编译
+    .\build.ps1 -ZigPath 'C:\tools\zig\zig.exe'
 
-需要 Windows x64、系统 .NET Framework 4.x 的 C# 编译器，以及 Zig。原生模块已使用 **Zig 0.16.0** 构建验证。Zig 仅用于开发，最终用户不需要安装。
+脚本从官方 NuGet 获取 Nefarius.ViGEm.Client 1.21.256，校验 x64 客户端哈希并嵌入 EXE。成品输出到 dist/ShakeFH2，仅分发上方列出的三个文件，调试产物不分发。
 
-```powershell
-# Zig 已在 PATH 中
-.\build.ps1
+关闭游戏后可以执行：
 
-# 或显式指定编译器
-.\build.ps1 -ZigPath 'C:\tools\zig\zig.exe'
-```
+    & .\dist\ShakeFH2\ShakeFH2.exe --self-test | Out-String
+    & .\dist\ShakeFH2\ShakeFH2.exe --test-modes | Out-String
+    & .\dist\ShakeFH2\ShakeFH2.exe --test-mixing | Out-String
 
-成品输出到 `dist\ShakeFH2`。游戏运行时不要覆盖它已加载的 DLL。
+## 参考与许可
 
-```powershell
-# 验证内存桥接和回退逻辑，不需要启动游戏
-& .\dist\ShakeFH2\ShakeFH2.exe --self-test | Out-String
+Azimuth 震动函数特征和四路 float 布局参考 [FH2-DualSense](https://github.com/aminenrr/FH2-DualSense)。虚拟手柄客户端使用 [ViGEmClient](https://github.com/nefarius/ViGEmClient)。第三方许可见 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。
 
-# 仅读取手柄枚举和状态
-& .\dist\ShakeFH2\ShakeFH2.exe --probe | Out-String
-
-# 游戏关闭时，依次短暂测试各路马达
-& .\dist\ShakeFH2\ShakeFH2.exe --test-motors | Out-String
-```
-
-## 验证
-
-七项模拟进程测试通过，当前 USB Xbox 手柄在实际驾驶场景中确认扳机与握把震动正常。详见 [VALIDATION.md](VALIDATION.md)。
-
-## 参考与署名
-
-四路 float 布局及 Azimuth 的函数特征定位参考 [FH2-DualSense](https://github.com/aminenrr/FH2-DualSense) 的 `app/azimuth_hook.py`（MIT）。Xbox 输出模块、调用租约、线程检查、界面及测试独立实现。第三方许可见 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)。
-
-Windows.Gaming.Input ABI 使用 Microsoft Windows SDK 的公开接口定义。本工具与 Microsoft、Playground Games 或 Azimuth 开发者没有官方关联。
+不包含游戏、运行器、DLC 或驱动安装器，与 Microsoft、Playground Games 或 Azimuth 开发者没有官方关联。
