@@ -1,4 +1,4 @@
-# ShakeFH2 v2.0.0
+# ShakeFH2 v2.0.1
 
 作者：**栗尾玲子KurioReiko**
 

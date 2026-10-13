@@ -8,7 +8,7 @@
 
 ## 下载
 
-从 [Releases](https://github.com/Kur1oR3iko/ShakeFH2/releases/latest) 下载 **v2.0.0 Windows x64**，解压后运行 ShakeFH2.exe。
+从 [Releases](https://github.com/Kur1oR3iko/ShakeFH2/releases/latest) 下载 **v2.0.1 Windows x64**，解压后运行 ShakeFH2.exe。
 
 分发包只有三个文件：ShakeFH2.exe、XboxTriggerOutput.dll 和简要 README.md。EXE 与 DLL 必须放在同一目录。
 
