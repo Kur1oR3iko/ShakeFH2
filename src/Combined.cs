@@ -67,6 +67,8 @@ namespace FH2Tools
             tabs.TabPages.Add(vibration); tabs.TabPages.Add(keyboard);
             Embed(vibration,Vibration); Embed(keyboard,Keyboard);
             Controls.Add(tabs); Controls.Add(mode);
+            Label version=new Label {Text="v"+Assembly.GetExecutingAssembly().GetName().Version.ToString(3),Dock=DockStyle.Top,Height=24,Padding=new Padding(0,0,12,0),TextAlign=ContentAlignment.MiddleRight,ForeColor=Color.DimGray};
+            Controls.Add(version);
             tabs.SelectedIndexChanged+=delegate { SwitchServices(); };
             Shown+=delegate { SwitchServices(); };
             FormClosing+=delegate(object sender,FormClosingEventArgs e)
@@ -84,7 +86,7 @@ namespace FH2Tools
         }
         void ResizeForPage(int index)
         {
-            ClientSize=index==0?new Size(630,438):new Size(870,838);
+            ClientSize=index==0?new Size(630,462):new Size(870,862);
         }
         void SwitchServices()
         {
@@ -116,6 +118,8 @@ namespace FH2Tools
                 if(args.Length>0)
                 {
                     if(args[0]=="--fixture") return XboxTriggerBridge.Tests.Fixture(args[1]);
+                    if(args[0]=="--fixture099") return XboxTriggerBridge.Tests.Fixture(args[1],true);
+                    if(args[0]=="--hook-self-test") { XboxTriggerBridge.Tests.SelfTest(); XboxTriggerBridge.Tests.SelfTest(true); return 0; }
                     if(args[0]=="--keyboard-worker") return KeyboardIsolation.RunWorker(args[1],int.Parse(args[2]));
                     if(args[0]=="--self-test") { XboxTriggerBridge.VibrationPreferences.SelfTest(); XboxTriggerBridge.Tests.SelfTest(); KeyFH2.Tests.Run(); KeyFH2.Tests.MappingOnly(); return 0; }
                     if(args[0]=="--keyboard-self-test") { KeyFH2.Tests.Run(); KeyFH2.Tests.MappingOnly(); return 0; }

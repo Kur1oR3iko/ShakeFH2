@@ -8,7 +8,7 @@
 
 ## 下载
 
-从 [Releases](https://github.com/Kur1oR3iko/ShakeFH2/releases/latest) 下载 **v2.0.1 Windows x64**，解压后运行 ShakeFH2.exe。
+从 [Releases](https://github.com/Kur1oR3iko/ShakeFH2/releases/latest) 下载 **v2.0.2 Windows x64**，解压后运行 ShakeFH2.exe。
 
 分发包只有三个文件：ShakeFH2.exe、XboxTriggerOutput.dll 和简要 README.md。EXE 与 DLL 必须放在同一目录。
 
@@ -58,7 +58,7 @@
 
 | 项目 | 适用环境 |
 | --- | --- |
-| 运行器 | **Azimuth 0.9.7，Windows x64** |
+| 运行器 | **Azimuth 0.9.7 / 0.9.9，Windows x64** |
 | 游戏 | **Xbox One 版《地平线 2》（Anthem 1.0.0.64）及《地平线 2：速度与激情》** |
 | 系统 | Windows x64、.NET Framework 4.x；实测 Windows 11 |
 | 手柄 | Xbox 手柄 |

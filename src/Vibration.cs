@@ -210,6 +210,7 @@ namespace XboxTriggerBridge
     internal sealed class RemoteHook : IDisposable
     {
         internal const string Signature = "48 8B C4 48 89 58 08 57 48 81 EC B0 00 00 00 0F 29 70 E8 0F 29 78 D8 44 0F 29 40 C8 44 0F 29 48 B8 44 0F 29 50 A8 44 0F 29 58 98 44 0F 29 60 88 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 44 24 38 48 8B F9 F3 44 0F 10 0A F3 44 0F 11 4C 24 28 F3 44 0F 10 52 04 F3 44 0F 11 54 24 2C F3 44 0F 10 5A 08 F3 44 0F 11 5C 24 30 F3 44 0F 10 62 0C";
+        internal const string Signature099 = "48 8B C4 48 89 58 18 48 89 68 20 56 57 41 56 48 81 EC B0 00 00 00 0F 29 70 D8 0F 29 78 C8 44 0F 29 40 B8 44 0F 29 48 A8 44 0F 29 50 98 44 0F 29 58 88 44 0F 29 64 24 40 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 44 24 38 48 8B E9 F3 44 0F 10 0A F3 44 0F 11 4C 24 28 F3 44 0F 10 52 04 F3 44 0F 11 54 24 2C F3 44 0F 10 5A 08 F3 44 0F 11 5C 24 30 F3 44 0F 10 62 0C";
         internal static readonly byte[] Magic = Encoding.ASCII.GetBytes("XBTRv002");
         const int Stolen = 15, StubOffset = 4096;
         internal readonly Process Process;
@@ -245,7 +246,7 @@ namespace XboxTriggerBridge
                     }
                 }
                 byte[] original = Read(Target, Stolen);
-                if (!Equal(original, Hex(Signature.Substring(0, 44)))) throw new InvalidOperationException("函数入口校验失败。");
+                if (!Equal(original, Hex(Signature.Substring(0, 44))) && !Equal(original, Hex(Signature099.Substring(0, 44)))) throw new InvalidOperationException("函数入口校验失败。");
                 IntPtr allocation = Native.VirtualAllocEx(handle, IntPtr.Zero, (UIntPtr)8192, 0x3000, 0x04);
                 Native.Check(allocation != IntPtr.Zero, "VirtualAllocEx"); Buffer = allocation.ToInt64();
                 byte[] code = MakeStub(Buffer, Target, original);
@@ -289,7 +290,10 @@ namespace XboxTriggerBridge
         internal static bool Equal(byte[] a, byte[] b) { if (a.Length != b.Length) return false; for (int i = 0; i < a.Length; i++) if (a[i] != b[i]) return false; return true; }
         internal static int Find(byte[] image, bool patched)
         {
-            string[] tokens = Signature.Split(' '); byte[] sig = Hex(Signature); int found = -1;
+            int found = -1;
+            foreach (string signature in new string[] { Signature, Signature099 })
+            {
+            string[] tokens = signature.Split(' '); byte[] sig = Hex(signature);
             for (int i = 0; i <= image.Length - sig.Length; i++)
             {
                 if (image[i + 15] != sig[15] || image[i + 16] != sig[16]) continue;
@@ -297,6 +301,7 @@ namespace XboxTriggerBridge
                 if (patched) { byte[] jump = Hex("FF 25 00 00 00 00"); for (int j = 0; j < jump.Length; j++) if (image[i + j] != jump[j]) match = false; if (image[i + 14] != 0x90) match = false; }
                 for (int j = patched ? Stolen : 0; match && j < sig.Length; j++) if (tokens[j] != "??" && image[i + j] != sig[j]) match = false;
                 if (match) { if (found >= 0) throw new InvalidOperationException("函数定位结果不唯一；连接已取消。"); found = i; }
+            }
             }
             return found;
         }
@@ -662,27 +667,30 @@ namespace XboxTriggerBridge
     internal static class Tests
     {
         [UnmanagedFunctionPointer(CallingConvention.Winapi)] delegate int Setter(IntPtr self, IntPtr levels);
-        internal static int Fixture(string metadata)
+        internal static int Fixture(string metadata, bool modern = false)
         {
             IntPtr process = Native.OpenProcess(0x0400 | 0x0010 | 0x0020 | 0x0008, false, Process.GetCurrentProcess().Id);
             IntPtr memory = Native.VirtualAllocEx(process, IntPtr.Zero, (UIntPtr)4096, 0x3000, 0x40);
             Native.Check(memory != IntPtr.Zero, "fixture allocation"); long baseAddress = memory.ToInt64();
             long counter = baseAddress + 1024, result = baseAddress + 1028, obj = baseAddress + 1100, input = baseAddress + 1200;
-            List<byte> code = new List<byte>(RemoteHook.Hex(RemoteHook.Signature));
+            List<byte> code = new List<byte>(RemoteHook.Hex(modern ? RemoteHook.Signature099 : RemoteHook.Signature));
             code.AddRange(RemoteHook.Hex("48 B8")); code.AddRange(BitConverter.GetBytes(counter)); code.AddRange(RemoteHook.Hex("F0 FF 00 B8 D2 04 00 00"));
-            code.AddRange(RemoteHook.Hex("4C 8D 9C 24 B0 00 00 00 49 8B 5B 10 41 0F 28 73 F0 41 0F 28 7B E0 45 0F 28 43 D0 45 0F 28 4B C0 45 0F 28 53 B0 45 0F 28 5B A0 45 0F 28 63 90 49 8B E3 5F C3"));
+            code.AddRange(RemoteHook.Hex(modern
+                ? "4C 8D 9C 24 B0 00 00 00 49 8B 5B 30 49 8B 6B 38 41 0F 28 73 F0 41 0F 28 7B E0 45 0F 28 43 D0 45 0F 28 4B C0 45 0F 28 53 B0 45 0F 28 5B A0 45 0F 28 63 90 49 8B E3 41 5E 5F 5E C3"
+                : "4C 8D 9C 24 B0 00 00 00 49 8B 5B 10 41 0F 28 73 F0 41 0F 28 7B E0 45 0F 28 43 D0 45 0F 28 4B C0 45 0F 28 53 B0 45 0F 28 5B A0 45 0F 28 63 90 49 8B E3 5F C3"));
             UIntPtr written; Native.Check(Native.WriteProcessMemory(process, memory, code.ToArray(), (UIntPtr)code.Count, out written), "fixture code");
             Marshal.WriteInt32(new IntPtr(obj + 32), 7);
             float[] values = new float[] {0.21f, 0.32f, 0.43f, 0.54f}; byte[] data = new byte[16]; Buffer.BlockCopy(values, 0, data, 0, 16); Marshal.Copy(data, 0, new IntPtr(input), 16);
             Setter call = Marshal.GetDelegateForFunctionPointer(memory, typeof(Setter)) as Setter;
-            File.WriteAllText(metadata, string.Format("{0},{1},{2},{3},{4}", Process.GetCurrentProcess().Id, baseAddress, counter, result, input));
+            File.WriteAllText(metadata + ".tmp", string.Format("{0},{1},{2},{3},{4}", Process.GetCurrentProcess().Id, baseAddress, counter, result, input));
+            File.Move(metadata + ".tmp", metadata);
             while (true) { Marshal.WriteInt32(new IntPtr(result), call(new IntPtr(obj), new IntPtr(input))); Thread.Sleep(5); }
         }
         static void Assert(bool condition, string message) { if (!condition) throw new Exception("FAILED: " + message); Console.WriteLine("PASS: " + message); }
-        internal static void SelfTest()
+        internal static void SelfTest(bool modern = false)
         {
             string metadata = Path.Combine(Log.Folder, "fixture-" + Guid.NewGuid().ToString("N") + ".txt");
-            Process child = Process.Start(new ProcessStartInfo(typeof(Tests).Assembly.Location, "--fixture \"" + metadata + "\"") { UseShellExecute = false, CreateNoWindow = true });
+            Process child = Process.Start(new ProcessStartInfo(typeof(Tests).Assembly.Location, (modern ? "--fixture099 \"" : "--fixture \"") + metadata + "\"") { UseShellExecute = false, CreateNoWindow = true });
             try
             {
                 for (int i = 0; i < 100 && !File.Exists(metadata); i++) { if (child.HasExited) throw new Exception("Fixture exited"); Thread.Sleep(50); }
@@ -701,7 +709,7 @@ namespace XboxTriggerBridge
                     Assert(BitConverter.ToInt32(hook.Read(result, 4), 0) == 1234, "expired host lease automatically restores original handler");
                     hook.Lease(true); Thread.Sleep(30); hook.Lease(false); Thread.Sleep(50);
                     Assert(BitConverter.ToInt32(hook.Read(result, 4), 0) == 1234, "stop immediately restores original handler");
-                    byte[] patched = hook.Read(target, RemoteHook.Hex(RemoteHook.Signature).Length);
+                    byte[] patched = hook.Read(target, RemoteHook.Hex(modern ? RemoteHook.Signature099 : RemoteHook.Signature).Length);
                     Assert(RemoteHook.Find(patched, true) == 0, "resident hook can be recognized safely on reconnect");
                 }
                 Console.WriteLine("All hook self-tests passed.");
